@@ -6,7 +6,9 @@
 #
 # The latest version of this script can be found at:
 # https://github.com/rocky-linux/rocky-tools
-#
+# 
+# Added a few commands to also upgrade RockyLinux 8 to RockyLinux 9 and added exclusion for the kubernetes package
+# 
 # Copyright (c) 2021 Rocky Enterprise Software Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -33,6 +35,15 @@
 
 # These checks need to be right at the top because we start with bash-isms right
 # away in this script.
+if [ -f /etc/yum.repos.d/kubernetes.repo ]
+then
+        echo "This is a Kubernetes Node"
+	echo exclude=kube* >> /etc/yum.repos.d/kubernetes.repo
+else
+        echo "No kubernetes repo found. Addind exclusion to main yum config, just in case"
+        echo exclude=kube* >> /etc/yum.conf
+fi
+
 if [ -n "$POSIXLY_CORRECT" ] || [ -z "$BASH_VERSION" ]; then
     printf '%s\n' "bash >= 4.2 is required for this script." >&2
     exit 1
@@ -195,6 +206,14 @@ unset CDPATH
 exit_message() {
   errmsg $'\n'"$1"$'\n\n'
   final_message
+  echo Applying custom changes before rebooting the system!
+  yum remove rocky-logos-86.3-1.el8.x86_64 -y
+  dnf -y --releasever=9 --allowerasing --setopt=deltarpm=false distro-sync --nogpgcheck
+  rpm --rebuilddb
+  mv /etc/dnf/modules.d{,_OLD}
+  mkdir /etc/dnf/modules.d
+  echo We will reboot this system in 60 seconds. Please run 'dnf install kubeadm kubectl --allowerasing' once the system boots back up, to complete the migration.
+  sleep 60 && sudo reboot
   exit 1
 }
 
